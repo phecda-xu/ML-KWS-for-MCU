@@ -106,7 +106,7 @@ def main(_):
       FLAGS.sample_rate, FLAGS.clip_duration_ms, FLAGS.window_size_ms,
       FLAGS.window_stride_ms, FLAGS.dct_coefficient_count)
   audio_processor = input_data.AudioProcessor(
-      FLAGS.data_url, FLAGS.data_dir, FLAGS.silence_percentage,
+      FLAGS.data_dir, FLAGS.silence_percentage,
       FLAGS.unknown_percentage,
       FLAGS.wanted_words.split(','), FLAGS.validation_percentage,
       FLAGS.testing_percentage, model_settings)
@@ -154,6 +154,8 @@ def main(_):
     cross_entropy_mean = tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits(
             labels=ground_truth_input, logits=logits))
+
+
   tf.summary.scalar('cross_entropy', cross_entropy_mean)
 
   update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -307,16 +309,9 @@ def main(_):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--data_url',
-      type=str,
-      # pylint: disable=line-too-long
-      default='http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz',
-      # pylint: enable=line-too-long
-      help='Location of speech training data archive on the web.')
-  parser.add_argument(
       '--data_dir',
       type=str,
-      default='/tmp/speech_dataset/',
+      default='/home/phecda/Data/speech_commands_v0.02/',
       help="""\
       Where to download the speech training data to.
       """)
@@ -337,14 +332,14 @@ if __name__ == '__main__':
   parser.add_argument(
       '--silence_percentage',
       type=float,
-      default=10.0,
+      default=50.0,
       help="""\
       How much of the training data should be silence.
       """)
   parser.add_argument(
       '--unknown_percentage',
       type=float,
-      default=10.0,
+      default=100.0,
       help="""\
       How much of the training data should be unknown words.
       """)
@@ -358,12 +353,12 @@ if __name__ == '__main__':
   parser.add_argument(
       '--testing_percentage',
       type=int,
-      default=10,
+      default=30,
       help='What percentage of wavs to use as a test set.')
   parser.add_argument(
       '--validation_percentage',
       type=int,
-      default=10,
+      default=30,
       help='What percentage of wavs to use as a validation set.')
   parser.add_argument(
       '--sample_rate',
@@ -393,7 +388,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--how_many_training_steps',
       type=str,
-      default='15000,3000',
+      default='5000,3000',
       help='How many training loops to run',)
   parser.add_argument(
       '--eval_step_interval',
@@ -413,17 +408,17 @@ if __name__ == '__main__':
   parser.add_argument(
       '--summaries_dir',
       type=str,
-      default='/tmp/retrain_logs',
+      default='./WORK/CRNN/CRNN1_nega_1/retrain_logs',
       help='Where to save summary logs for TensorBoard.')
   parser.add_argument(
       '--wanted_words',
       type=str,
-      default='yes,no,up,down,left,right,on,off,stop,go',
+      default='marvin',
       help='Words to use (others will be added to an unknown label)',)
   parser.add_argument(
       '--train_dir',
       type=str,
-      default='/tmp/speech_commands_train',
+      default='./WORK/CRNN/CRNN1_nega_1/training',
       help='Directory to write event logs and checkpoint.')
   parser.add_argument(
       '--save_step_interval',
@@ -438,13 +433,13 @@ if __name__ == '__main__':
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default='dnn',
+      default='crnn',
       help='What model architecture to use')
   parser.add_argument(
       '--model_size_info',
       type=int,
       nargs="+",
-      default=[128,128,128],
+      default=[48,10,4,2,2,2,60,84],
       help='Model dimensions - different for various models')
   parser.add_argument(
       '--check_nans',

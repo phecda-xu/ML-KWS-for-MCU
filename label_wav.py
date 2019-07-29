@@ -36,6 +36,8 @@ import sys
 
 import tensorflow as tf
 
+
+
 # pylint: disable=unused-import
 from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
 # pylint: enable=unused-import
@@ -97,6 +99,10 @@ def label_wav(wav, labels, graph, input_name, output_name, how_many_labels):
     wav_data = wav_file.read()
 
   run_graph(wav_data, labels_list, input_name, output_name, how_many_labels)
+
+
+
+
 
 
 def main(_):

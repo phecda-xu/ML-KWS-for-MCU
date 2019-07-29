@@ -138,30 +138,23 @@ def main(_):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--data_url',
-      type=str,
-      # pylint: disable=line-too-long
-      default='http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz',
-      # pylint: enable=line-too-long
-      help='Location of speech training data archive on the web.')
-  parser.add_argument(
       '--data_dir',
       type=str,
-      default='/tmp/speech_dataset/',
+      default='/home/phecda/Data/speech_commands_v0.02/',
       help="""\
       Where to download the speech training data to.
       """)
   parser.add_argument(
       '--silence_percentage',
       type=float,
-      default=10.0,
+      default=30.0,
       help="""\
       How much of the training data should be silence.
       """)
   parser.add_argument(
       '--unknown_percentage',
       type=float,
-      default=10.0,
+      default=50.0,
       help="""\
       How much of the training data should be unknown words.
       """)
@@ -208,23 +201,23 @@ if __name__ == '__main__':
   parser.add_argument(
       '--wanted_words',
       type=str,
-      default='yes,no,up,down,left,right,on,off,stop,go',
+      default='marvin',
       help='Words to use (others will be added to an unknown label)',)
   parser.add_argument(
       '--checkpoint',
       type=str,
-      default='',
+      default='./WORK/CRNN/CRNN_nega/training/best/crnn_9687.ckpt-7200',
       help='Checkpoint to load the weights from.')
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default='dnn',
+      default='crnn',
       help='What model architecture to use')
   parser.add_argument(
       '--model_size_info',
       type=int,
       nargs="+",
-      default=[128,128,128],
+      default=[48,10,4,2,2,2,60,84],
       help='Model dimensions - different for various models')
 
   FLAGS, unparsed = parser.parse_known_args()

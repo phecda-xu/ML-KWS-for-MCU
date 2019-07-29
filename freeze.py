@@ -169,25 +169,27 @@ if __name__ == '__main__':
   parser.add_argument(
       '--checkpoint',
       type=str,
-      default='',
+      default='./WORK/CRNN/CRNN_nega/training/best/crnn_9687.ckpt-7200',
       help='If specified, restore this pretrained model before any training.')
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default='dnn',
+      default='crnn',
       help='What model architecture to use')
   parser.add_argument(
       '--model_size_info',
       type=int,
       nargs="+",
-      default=[128,128,128],
+      default=[48,10,4,2,2,2,60,84],
       help='Model dimensions - different for various models')
   parser.add_argument(
       '--wanted_words',
       type=str,
-      default='yes,no,up,down,left,right,on,off,stop,go',
+      default='marvin',
       help='Words to use (others will be added to an unknown label)',)
   parser.add_argument(
-      '--output_file', type=str, help='Where to save the frozen graph.')
+      '--output_file',
+      default='crnn1.pb',
+      type=str, help='Where to save the frozen graph.')
   FLAGS, unparsed = parser.parse_known_args()
   tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)

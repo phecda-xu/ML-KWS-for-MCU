@@ -18,6 +18,11 @@ python train.py --model_architecture lstm --model_size_info 98 144 --dct_coeffic
 python train.py --model_architecture lstm --model_size_info 130 280 --dct_coefficient_count 10 --window_size_ms 40 --window_stride_ms 20 --learning_rate 0.0005,0.0001,0.00002 --how_many_training_steps 10000,10000,10000 --summaries_dir work/LSTM/LSTM2/retrain_logs --train_dir work/LSTM/LSTM2/training 
 python train.py --model_architecture lstm --model_size_info 188 500 --dct_coefficient_count 10 --window_size_ms 40 --window_stride_ms 20 --learning_rate 0.0005,0.0001,0.00002 --how_many_training_steps 10000,10000,10000 --summaries_dir work/LSTM/LSTM3/retrain_logs --train_dir work/LSTM/LSTM3/training 
 
+#LSTM+Attention Models
+python train.py --model_architecture lstm_attention --model_size_info 98 144 128 --dct_coefficient_count 10 --window_size_ms 40 --window_stride_ms 40 --learning_rate 0.0005,0.0001,0.00002 --how_many_training_steps 10000,10000,10000 --summaries_dir work/LSTM_Attention/LSTMAtt1/retrain_logs --train_dir work/LSTM_Attention/LSTMAtt1/training
+python train.py --model_architecture lstm_attention --model_size_info 130 280 128--dct_coefficient_count 10 --window_size_ms 40 --window_stride_ms 20 --learning_rate 0.0005,0.0001,0.00002 --how_many_training_steps 10000,10000,10000 --summaries_dir work/LSTM_Attention/LSTMAtt2/retrain_logs --train_dir work/LSTM_Attention/LSTMAtt2/training
+python train.py --model_architecture lstm_attention --model_size_info 188 500 256 --dct_coefficient_count 10 --window_size_ms 40 --window_stride_ms 20 --learning_rate 0.0005,0.0001,0.00002 --how_many_training_steps 10000,10000,10000 --summaries_dir work/LSTM_Attention/LSTMAtt3/retrain_logs --train_dir work/LSTM_Attention/LSTMAtt3/training
+
 #GRU Models
 python train.py --model_architecture gru --model_size_info 1 154 --dct_coefficient_count 10 --window_size_ms 40 --window_stride_ms 40 --learning_rate 0.0005,0.0001,0.00002 --how_many_training_steps 10000,10000,10000 --summaries_dir work/GRU/GRU1/retrain_logs --train_dir work/GRU/GRU1/training 
 python train.py --model_architecture gru --model_size_info 1 250 --dct_coefficient_count 10 --window_size_ms 40 --window_stride_ms 20 --learning_rate 0.0005,0.0001,0.00002 --how_many_training_steps 10000,10000,10000 --summaries_dir work/GRU/GRU2/retrain_logs --train_dir work/GRU/GRU2/training 

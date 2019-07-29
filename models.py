@@ -130,13 +130,19 @@ def create_model(fingerprint_input, model_settings, model_architecture,
     return create_basic_lstm_model(fingerprint_input, model_settings, 
                                      model_size_info, is_training)
   elif model_architecture == 'lstm':
-    return create_lstm_model(fingerprint_input, model_settings, 
+    return create_lstm_model(fingerprint_input, model_settings,
+                               model_size_info, is_training)
+  elif model_architecture == 'lstm_attention':
+    return create_lstm_attentiion_model(fingerprint_input, model_settings,
                                model_size_info, is_training)
   elif model_architecture == 'gru':
     return create_gru_model(fingerprint_input, model_settings, model_size_info,
                               is_training)
   elif model_architecture == 'crnn':
     return create_crnn_model(fingerprint_input, model_settings, model_size_info, 
+                               is_training)
+  elif model_architecture == 'crnn_attention':
+    return create_crnn_attention_model(fingerprint_input, model_settings, model_size_info,
                                is_training)
   elif model_architecture == 'ds_cnn':
     return create_ds_cnn_model(fingerprint_input, model_settings, 
@@ -829,6 +835,69 @@ def create_lstm_model(fingerprint_input, model_settings, model_size_info,
   else:
     return logits
 
+
+def create_lstm_attentiion_model(fingerprint_input, model_settings, model_size_info,
+                        is_training, time_major=False):
+  """Builds a model with a lstm layer (with output projection layer and
+       peep-hole connections)
+  Based on model described in https://arxiv.org/abs/1705.02411
+  model_size_info: [projection size, memory cells in LSTM]
+  """
+  if is_training:
+    dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
+  input_frequency_size = model_settings['dct_coefficient_count']
+  input_time_size = model_settings['spectrogram_length']
+  fingerprint_4d = tf.reshape(fingerprint_input,
+                              [-1, input_time_size, input_frequency_size])
+
+  num_classes = model_settings['label_count']
+  projection_units = model_size_info[0]
+  LSTM_units = model_size_info[1]
+  attention_size = model_size_info[2]
+  with tf.name_scope('LSTM-Layer'):
+    with tf.variable_scope("lstm"):
+      lstmcell = tf.contrib.rnn.LSTMCell(LSTM_units, use_peepholes=True,
+                   num_proj=projection_units)
+      output, last = tf.nn.dynamic_rnn(cell=lstmcell, inputs=fingerprint_4d,
+                  dtype=tf.float32)
+      flow = output
+
+  if time_major:
+      # (T,B,D) => (B,T,D)
+      flow = tf.transpose(flow, [1, 0, 2])
+
+  inputs_shape = flow.shape
+  sequence_length = inputs_shape[1].value  # the length of sequences processed in the antecedent RNN layer
+  hidden_size = inputs_shape[2].value  # hidden size of the LSTM layer
+
+  # Attention mechanism
+  W_omega = tf.Variable(tf.random_normal([hidden_size, attention_size], stddev=0.1))
+  b_omega = tf.Variable(tf.random_normal([attention_size], stddev=0.1))
+  u_omega = tf.Variable(tf.random_normal([attention_size], stddev=0.1))
+
+  # self-attention score = v*tanh(w*flow + b)
+  v = tf.tanh(tf.matmul(tf.reshape(flow, [-1, hidden_size]), W_omega) + tf.reshape(b_omega, [1, -1]))
+  vu = tf.matmul(v, tf.reshape(u_omega, [-1, 1]))
+
+  # a = softmax(score)
+  exps = tf.reshape(tf.exp(vu), [-1, sequence_length])
+  alphas = exps / tf.reshape(tf.reduce_sum(exps, 1), [-1, 1])
+
+  # Output of LSTM is reduced with attention vector
+  flow = tf.reduce_sum(flow * tf.reshape(alphas, [-1, sequence_length, 1]), 1)
+
+  with tf.name_scope('Output-Layer'):
+    W_o = tf.get_variable('W_o', shape=[projection_units, num_classes],
+            initializer=tf.contrib.layers.xavier_initializer())
+    b_o = tf.get_variable('b_o', shape=[num_classes])
+    logits = tf.matmul(flow, W_o) + b_o
+
+  if is_training:
+    return logits, dropout_prob
+  else:
+    return logits
+
+
 class LayerNormGRUCell(rnn_cell_impl.RNNCell):
 
   def __init__(self, num_units, forget_bias=1.0,
@@ -1037,6 +1106,8 @@ def create_crnn_model(fingerprint_input, model_settings,
     flow_dim = RNN_units
     flow = last[-1]
 
+
+
   first_fc_output_channels = model_size_info[7]
 
   first_fc_weights = tf.get_variable('fcw', shape=[flow_dim, 
@@ -1062,6 +1133,135 @@ def create_crnn_model(fingerprint_input, model_settings,
     return final_fc, dropout_prob
   else:
     return final_fc
+
+
+def create_crnn_attention_model(fingerprint_input, model_settings,
+                      model_size_info, is_training, time_major=False):
+    """Builds a model with convolutional recurrent networks with GRUs
+    Based on the model definition in https://arxiv.org/abs/1703.05390
+    model_size_info: defines the following convolution layer parameters
+        {number of conv features, conv filter height, width, stride in y,x dir.},
+        followed by number of GRU layers and number of GRU cells per layer
+    Optionally, the bi-directional GRUs and/or GRU with layer-normalization
+      can be explored.
+    """
+    if is_training:
+        dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
+    input_frequency_size = model_settings['dct_coefficient_count']
+    input_time_size = model_settings['spectrogram_length']
+    fingerprint_4d = tf.reshape(fingerprint_input,
+                                [-1, input_time_size, input_frequency_size, 1])
+
+    layer_norm = False
+    bidirectional = False
+
+    # CNN part
+    first_filter_count = model_size_info[0]
+    first_filter_height = model_size_info[1]
+    first_filter_width = model_size_info[2]
+    first_filter_stride_y = model_size_info[3]
+    first_filter_stride_x = model_size_info[4]
+
+
+
+    first_weights = tf.get_variable('W', shape=[first_filter_height,
+                                                first_filter_width, 1, first_filter_count],
+                                    initializer=tf.contrib.layers.xavier_initializer())
+
+    first_bias = tf.Variable(tf.zeros([first_filter_count]))
+    first_conv = tf.nn.conv2d(fingerprint_4d, first_weights, [
+        1, first_filter_stride_y, first_filter_stride_x, 1
+    ], 'VALID') + first_bias
+    first_relu = tf.nn.relu(first_conv)
+    if is_training:
+        first_dropout = tf.nn.dropout(first_relu, dropout_prob)
+    else:
+        first_dropout = first_relu
+    first_conv_output_width = int(math.floor(
+        (input_frequency_size - first_filter_width + first_filter_stride_x) /
+        first_filter_stride_x))
+    first_conv_output_height = int(math.floor(
+        (input_time_size - first_filter_height + first_filter_stride_y) /
+        first_filter_stride_y))
+
+    # GRU part
+    num_rnn_layers = model_size_info[5]
+    RNN_units = model_size_info[6]
+    attention_size = model_size_info[6]
+    flow = tf.reshape(first_dropout, [-1, first_conv_output_height,
+                                      first_conv_output_width * first_filter_count])
+    cell_fw = []
+    cell_bw = []
+    if layer_norm:
+        for i in range(num_rnn_layers):
+            cell_fw.append(LayerNormGRUCell(RNN_units))
+            if bidirectional:
+                cell_bw.append(LayerNormGRUCell(RNN_units))
+    else:
+        for i in range(num_rnn_layers):
+            cell_fw.append(tf.contrib.rnn.GRUCell(RNN_units))
+            if bidirectional:
+                cell_bw.append(tf.contrib.rnn.GRUCell(RNN_units))
+
+    if bidirectional:
+        outputs, output_state_fw, output_state_bw = \
+            tf.contrib.rnn.stack_bidirectional_dynamic_rnn(cell_fw, cell_bw, flow,
+                                                           dtype=tf.float32)
+        flow_dim = first_conv_output_height * RNN_units * 2
+        flow = tf.reshape(outputs, [-1, flow_dim])
+    else:
+        cells = tf.contrib.rnn.MultiRNNCell(cell_fw)
+        outputs, last = tf.nn.dynamic_rnn(cell=cells, inputs=flow, dtype=tf.float32)
+        flow_dim = RNN_units
+        flow = outputs
+
+    if time_major:
+        # (T,B,D) => (B,T,D)
+        flow = tf.transpose(flow, [1, 0, 2])
+
+    inputs_shape = flow.shape
+    sequence_length = inputs_shape[1].value  # the length of sequences processed in the antecedent RNN layer
+    hidden_size = inputs_shape[2].value  # hidden size of the LSTM layer
+
+    # Attention mechanism
+    W_omega = tf.Variable(tf.random_normal([hidden_size, attention_size], stddev=0.1))
+    b_omega = tf.Variable(tf.random_normal([attention_size], stddev=0.1))
+    u_omega = tf.Variable(tf.random_normal([attention_size], stddev=0.1))
+
+    v = tf.tanh(tf.matmul(tf.reshape(flow, [-1, hidden_size]), W_omega) + tf.reshape(b_omega, [1, -1]))
+    vu = tf.matmul(v, tf.reshape(u_omega, [-1, 1]))
+    exps = tf.reshape(tf.exp(vu), [-1, sequence_length])
+    alphas = exps / tf.reshape(tf.reduce_sum(exps, 1), [-1, 1])
+
+    # Output of LSTM is reduced with attention vector
+    flow = tf.reduce_sum(flow * tf.reshape(alphas, [-1, sequence_length, 1]), 1)
+
+    first_fc_output_channels = model_size_info[7]
+
+    first_fc_weights = tf.get_variable('fcw', shape=[flow_dim,
+                                                     first_fc_output_channels],
+                                       initializer=tf.contrib.layers.xavier_initializer())
+
+    first_fc_bias = tf.Variable(tf.zeros([first_fc_output_channels]))
+    first_fc = tf.nn.relu(tf.matmul(flow, first_fc_weights) + first_fc_bias)
+    if is_training:
+        final_fc_input = tf.nn.dropout(first_fc, dropout_prob)
+    else:
+        final_fc_input = first_fc
+
+    label_count = model_settings['label_count']
+
+    final_fc_weights = tf.Variable(
+        tf.truncated_normal(
+            [first_fc_output_channels, label_count], stddev=0.01))
+
+    final_fc_bias = tf.Variable(tf.zeros([label_count]))
+    final_fc = tf.matmul(final_fc_input, final_fc_weights) + final_fc_bias
+    if is_training:
+        return final_fc, dropout_prob
+    else:
+        return final_fc
+
 
 def create_ds_cnn_model(fingerprint_input, model_settings, model_size_info, 
                           is_training):
@@ -1182,3 +1382,33 @@ def create_ds_cnn_model(fingerprint_input, model_settings, model_size_info,
   else:
     return logits
 
+
+def create_attention_model(num_units, att_size,
+                           encoder_output, att_mechanism="average"):
+
+    with tf.name_scope("attention"):
+        if att_mechanism == "average":
+            c_output = tf.reduce_mean(encoder_output, 1)
+        else:
+            # Soft attention.
+            # shape: [num_units, att_size]
+            att_W = tf.Variable(tf.random_normal(
+                [num_units, att_size], stddev=0.1))
+            # shape: [att_size]
+            att_b = tf.Variable(tf.random_normal(
+                [att_size], stddev=0.1))
+            # shape: [att_size]
+            att_v = tf.Variable(tf.random_normal(
+                [att_size], stddev=0.1))
+            # shape: [batch_size, num_steps, att_size]
+            att_t = tf.tanh(tf.tensordot(
+                encoder_output, att_W, axes=1) + att_b)
+            # shape: [batch_size, num_steps]
+            att_et = tf.tensordot(att_t, att_v, axes=1, name="att_et")
+            # shape: [batch_size, num_steps]
+            att_alpha = tf.nn.softmax(att_et, name="att_alpha")
+            # shape: [batch_size, num_units]
+            c_output = tf.reduce_sum(
+                encoder_output * tf.expand_dims(att_alpha, -1), 1)
+
+    return c_output
